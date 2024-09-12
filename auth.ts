@@ -1,5 +1,8 @@
 import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { getUserByEmail } from "./lib/user"
+import { credentialsSchema } from "./lib/schema";
+import bcrypt from "bcryptjs"
 // Your own logic for dealing with plaintext password strings; be careful!
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -12,16 +15,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: {},
       },
       authorize: async (credentials) => {
-        let user = null
+        const validation = credentialsSchema.safeParse(credentials)
 
-        // logic to salt and hash password
+        if (!validation.success) {
+          throw new Error("Credentials not validated")
+        }
 
-        // logic to verify if the user exists
+        const { email, password } = validation.data;
+
+        const user = await getUserByEmail(email);
 
         if (!user) {
           // No user found, so this is their first attempt to login
           // meaning this is also the place you could do registration
           throw new Error("User not found.")
+        }
+        // logic to salt and hash password
+        const hashPassword = await bcrypt.hash(password, 10);
+        // logic to verify if the user exists
+        const validateUser = bcrypt.compare(user.password, hashPassword);
+
+        if (!validateUser) {
+          throw new Error("Password is incorrect");
         }
 
         // return user object with their profile data
